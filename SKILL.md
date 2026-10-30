@@ -39,6 +39,7 @@ Cada elemento de `productos` trae:
 - `mercado`: `minimo`, `mediana` y `cantidad` de precios con stock y no atípicos. Si la configuración tiene `usarTransferencia`, se calculan con `comparable` (transferencia cuando hay, si no lista).
 - `diferencia`: `nuestro / mediana - 1` (0.15 = 15 % más caros).
 - `referencia` (si la configuración tiene `referencia`, normalmente Mercado Libre): `hoy` (más bajo de hoy), `tipico` (mediana de 91 días), `valor` (el típico o, si no hay, el de hoy) y `diferencia` contra ese valor.
+- `masBarato`: la publicación más barata válida (con stock, no atípica, no réplica): `fuente`, `nombre`, `precio`, `comparable`, `url`, `titulo`. Dar ese enlace cuando se hable de quién está más barato.
 - `medianaAnterior`, `referenciaAnterior`: valores de la corrida anterior.
 
 ## 4. Resumir

@@ -172,6 +172,16 @@ async function main() {
     } else {
       r.referencia = null;
     }
+    // La publicación más barata que vale como referencia: con stock, no
+    // atípica y, si es la de referencia, que no parezca réplica.
+    const validas = fuentes
+      .map((f) => [f, r.fuentes[f.id]])
+      .filter(([f, x]) => x && x.precio && x.stock && !x.atipico && !(referencia && f.id === referencia.id && r.referencia?.dudoso))
+      .sort((a, b) => a[1].comparable - b[1].comparable);
+    r.masBarato = validas.length
+      ? { fuente: validas[0][0].id, nombre: validas[0][0].nombre, precio: validas[0][1].precio, comparable: validas[0][1].comparable, url: validas[0][1].url, titulo: validas[0][1].titulo }
+      : null;
+
     const antes = anterior?.porClave.get(`${r.marca}|${r.nombre}|${r.ml}`.toLowerCase());
     r.medianaAnterior = antes?.mercado?.mediana ?? null;
     r.referenciaAnterior = antes?.referencia?.valor ?? null;

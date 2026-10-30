@@ -41,6 +41,14 @@ function celdaReferencia(datos, p) {
   return `<td class="dif dif--${r.dudoso ? 'dudoso' : tono(r.diferencia)}">${pct(r.diferencia) || '—'}<small>${base}</small>${aviso}${movimiento}</td>`;
 }
 
+// Enlace a la publicación más barata (con stock, sin atípicos ni réplicas).
+function celdaMasBarato(p) {
+  const m = p.masBarato;
+  if (!m) return '<td class="vacio">—</td>';
+  const transf = m.comparable < m.precio ? ` · transf.` : '';
+  return `<td title="${esc(m.titulo)}"><a href="${esc(m.url)}" target="_blank" rel="noopener">${ars(m.comparable)} ↗</a><small>${esc(m.nombre)}${transf}</small></td>`;
+}
+
 function html(datos) {
   const filas = datos.productos.map((p) => {
     const t = tonoPrincipal(datos, p);
@@ -53,6 +61,7 @@ function html(datos) {
       <th scope="row">${esc(p.nombre)}<small>${esc(p.marca)} · ${p.ml ?? '?'} ml</small></th>
       <td class="nuestro">${ars(p.nuestro)}</td>
       ${datos.referencia ? celdaReferencia(datos, p) : ''}
+      ${celdaMasBarato(p)}
       ${datos.fuentes.map((f) => celdaFuente(p.fuentes[f.id])).join('')}
       <td>${ars(p.mercado.mediana)}<small>${p.mercado.cantidad ? `${p.mercado.cantidad} con stock · mín ${ars(p.mercado.minimo)}` : ''}</small>${movimiento}</td>
       <td class="dif dif--${tTiendas}">${pct(p.diferencia) || '—'}</td>
@@ -125,6 +134,7 @@ function html(datos) {
         <th scope="col" data-orden="texto" style="text-align:left">Perfume</th>
         <th scope="col">${esc(datos.tienda || 'Nosotros')}</th>
         ${datos.referencia ? `<th scope="col" data-orden="dif">vs ${contra} ↕</th>` : ''}
+        <th scope="col">Más barato</th>
         ${datos.fuentes.map((f) => `<th scope="col">${esc(f.nombre)}</th>`).join('')}
         <th scope="col">Mediana tiendas</th>
         <th scope="col"${datos.referencia ? '' : ' data-orden="dif"'}>Dif. tiendas${datos.referencia ? '' : ' ↕'}</th>
@@ -137,6 +147,7 @@ ${filas}
 </main>
 <footer>
   ${datos.referencia ? `vs ${contra}: nuestro precio contra su mediana de 91 días (o el precio más bajo de hoy, si no hay historial). Es la comparación principal: ahí busca el cliente. Si su precio está a menos del 60 % de lo que piden las tiendas por el original, se marca "¿réplica?" y no se cuenta: revisá la publicación.<br>` : ''}
+  Más barato: la publicación más barata con stock, sin atípicos ni posibles réplicas (con el precio por transferencia, si se compara con ese). La flecha abre la publicación.<br>
   Precio de cada tienda: el más barato de las publicaciones que coinciden con el perfume (marca, nombre y ml), con stock si hay.
   Mercado Libre: el vendedor más barato del día según MejoresCompras, con la mediana de 91 días debajo.
   La mediana y la diferencia usan solo precios con stock y no atípicos (menos del 60 % o más del 170 % de lo que piden los demás)${datos.usarTransferencia ? ', y el precio por transferencia cuando la tienda lo publica' : ', con el precio de lista'}. Tachado: sin stock. Pasá el mouse por un precio para ver la publicación.
@@ -179,10 +190,12 @@ function csv(datos) {
   };
   const cabecera = ['id', 'marca', 'perfume', 'ml', 'nuestro',
     ...(datos.referencia ? ['referencia_hoy', 'referencia_91d', 'diferencia_referencia_%', 'referencia_dudosa'] : []),
+    'mas_barato_tienda', 'mas_barato_precio', 'mas_barato_url',
     ...datos.fuentes.map((f) => f.nombre), 'ml_mediana_91d', 'mercado_minimo', 'mercado_mediana', 'diferencia_%'];
   const filas = datos.productos.map((p) => [
     p.id, p.marca, p.nombre, p.ml, p.nuestro,
     ...(datos.referencia ? [p.referencia?.hoy, p.referencia?.tipico, p.referencia?.diferencia == null ? '' : Math.round(p.referencia.diferencia * 100), p.referencia?.dudoso ? 'si' : ''] : []),
+    p.masBarato?.nombre, p.masBarato ? Math.round(p.masBarato.comparable) : '', p.masBarato?.url,
     ...datos.fuentes.map((f) => {
       const x = p.fuentes[f.id];
       return x && x.precio ? `${Math.round(x.precio)}${x.stock ? '' : ' (sin stock)'}${x.atipico ? ' (atípico)' : ''}` : '';

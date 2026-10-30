@@ -16,8 +16,9 @@ Lo hice para [Vezaira Perfumes](https://vezaira.com.ar), que vende perfumes ára
    - Tolera errores de una letra: Qahwah, Qahwa y Qawah.
    - Descarta decants, desodorantes, kits, body mist, testers y otros tamaños.
    - Respeta el género: "Hawas for Her" no es "Hawas for Him", pero "Hawas Pour Homme" sí.
-4. Marca como atípicos los precios muy lejos del resto (otro tamaño sin aclarar, un vendedor dudoso) y no los cuenta.
-5. Arma un informe HTML con filtros, un CSV para Excel y un JSON con todo el detalle.
+4. Para cada perfume deja el enlace a la publicación más barata que encontró (con stock y sin réplicas), para ir a verla.
+5. Marca como atípicos los precios muy lejos del resto (otro tamaño sin aclarar, un vendedor dudoso) y no los cuenta.
+6. Arma un informe HTML con filtros, un CSV para Excel y un JSON con todo el detalle.
 
 
 ## Uso
