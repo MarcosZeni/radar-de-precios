@@ -1,0 +1,8 @@
+node_modules/
+
+# La configuración real nombra a la competencia: queda en la PC de cada uno.
+radar.config.json
+!ejemplo/radar.config.json
+
+# Informes generados
+informes/

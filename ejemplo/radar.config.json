@@ -1,0 +1,8 @@
+{
+  "tienda": "Ejemplo",
+  "catalogo": { "csv": "productos.csv" },
+  "fuentes": [
+    { "id": "ml", "nombre": "Mercado Libre", "tipo": "mejorescompras", "url": "https://mejorescompras.com.ar" }
+  ],
+  "salida": "../informes/ejemplo"
+}

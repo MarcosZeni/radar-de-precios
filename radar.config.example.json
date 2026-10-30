@@ -1,0 +1,15 @@
+{
+  "tienda": "Mi Perfumería",
+  "agente": "MiPerfumeriaPrecios/1.0 (comparador de precios; +https://mi-perfumeria.com.ar)",
+  "catalogo": { "csv": "productos.csv" },
+  "fuentes": [
+    { "id": "ml", "nombre": "Mercado Libre", "tipo": "mejorescompras", "url": "https://mejorescompras.com.ar" },
+    { "id": "tienda1", "nombre": "Tienda Uno", "tipo": "tiendanube", "url": "https://www.tienda-uno.com.ar" },
+    { "id": "tienda2", "nombre": "Tienda Dos", "tipo": "shopify", "url": "https://tienda-dos.com" }
+  ],
+  "alias": {
+    "Lattafa Honor & Glory": "badee bade e al oud",
+    "Al Haramain Aqua Dubai": "amber oud"
+  },
+  "salida": "informes"
+}
