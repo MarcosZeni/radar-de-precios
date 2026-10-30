@@ -1,6 +1,6 @@
 # radar-de-precios
 
-Compara los precios de tu perfumería con los de la competencia en Argentina: Mercado Libre y cualquier tienda Tiendanube o Shopify. Te dice qué perfumes tenés más caros o más baratos que el mercado y cómo se movieron los precios desde la última vez.
+Compara los precios de tu perfumería con los de la competencia en Argentina: Mercado Libre y cualquier tienda Tiendanube, Shopify o VTEX. Te dice qué perfumes tenés más caros o más baratos que el mercado y cómo se movieron los precios desde la última vez.
 
 Es un script de Node (sin dependencias) y también un [skill de Claude](https://docs.claude.com/en/docs/claude-code/skills): con el skill instalado, le pedís a Claude "¿cómo estamos de precios?" y lo corre, lee el resultado y te lo resume.
 
@@ -59,6 +59,7 @@ Después, en cualquier proyecto que tenga un `radar.config.json`, pedile a Claud
   "tienda": "Mi Perfumería",
   "agente": "MiPerfumeriaPrecios/1.0 (comparador de precios; +https://mi-perfumeria.com.ar)",
   "catalogo": { "csv": "productos.csv" },
+  "referencia": "ml",
   "fuentes": [
     { "id": "ml", "nombre": "Mercado Libre", "tipo": "mejorescompras", "url": "https://mejorescompras.com.ar" },
     { "id": "tienda1", "nombre": "Tienda Uno", "tipo": "tiendanube", "url": "https://www.tienda-uno.com.ar" },
@@ -76,9 +77,12 @@ Después, en cualquier proyecto que tenga un `radar.config.json`, pedile a Claud
 - **`fuentes`**: dónde buscar. Tipos:
   - `tiendanube`: cualquier tienda Tiendanube (las fotos salen de `mitiendanube.com`).
   - `shopify`: cualquier tienda Shopify (`https://<tienda>/products.json` responde).
+  - `vtex`: cualquier tienda VTEX (`https://<tienda>/api/catalog_system/pub/products/search` responde).
   - `mejorescompras`: Mercado Libre Argentina. ML no deja leer precios sin cuenta, así que se usan los que publica [MejoresCompras](https://mejorescompras.com.ar), que los sigue a diario.
 - **`alias`**: palabras que se aceptan de más para un producto cuyo nombre completo es más largo que el de tu catálogo. La clave es "marca nombre".
 - **`agente`**: cómo se presenta el script ante cada sitio. Poné el nombre y la web de tu tienda.
+- **`referencia`** (opcional): id de la fuente contra la que comparar primero, normalmente `"ml"`: es donde el cliente busca el mismo perfume. El informe muestra nuestro precio contra su mediana de 91 días (o el más bajo de hoy) y la mediana de las tiendas queda como dato secundario.
+- **`usarTransferencia`** (opcional, `true`/`false`): comparar contra el precio por transferencia cuando la tienda lo publica (Tiendanube). Conviene si vendés al contado: el precio de lista de muchas tiendas trae el recargo de las cuotas.
 - **`atipico`** (opcional): `{ "abajo": 0.6, "arriba": 1.7 }`, el rango contra la mediana fuera del cual un precio se ignora.
 
 El `radar.config.json` está en `.gitignore`: nombra a tu competencia, así que no lo subas.

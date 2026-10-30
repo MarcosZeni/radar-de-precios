@@ -1,4 +1,4 @@
-// Salidas de precios-mercado.js: el informe HTML y el CSV para Excel.
+// Salidas de radar.js: el informe HTML y el CSV para Excel.
 
 const ars = (n) => (n == null ? '' : `$ ${Math.round(n).toLocaleString('es-AR')}`);
 const pct = (n) => (n == null ? '' : `${n > 0 ? '+' : ''}${Math.round(n * 100)} %`);
@@ -24,23 +24,43 @@ function celdaFuente(f) {
     + `${f.stock ? '' : '<small>sin stock</small>'}${f.atipico ? '<small>atípico</small>' : ''}${extra}</td>`;
 }
 
+// Diferencia principal: contra la referencia (Mercado Libre) si hay una
+// configurada; si no, contra la mediana de las tiendas.
+const principal = (datos, p) => (datos.referencia ? p.referencia?.diferencia ?? null : p.diferencia);
+const tonoPrincipal = (datos, p) => (datos.referencia && p.referencia?.dudoso ? 'dudoso' : tono(principal(datos, p)));
+
+function celdaReferencia(datos, p) {
+  const r = p.referencia;
+  if (!r) return '<td class="dif dif--sin">—<small>no está</small></td>';
+  const base = r.tipico ? `91 d: ${ars(r.tipico)}` : `hoy desde ${ars(r.hoy)}`;
+  const mov = p.referenciaAnterior ? r.valor / p.referenciaAnterior - 1 : null;
+  const movimiento = mov != null && Math.abs(mov) >= 0.01
+    ? `<small class="${mov > 0 ? 'sube' : 'baja'}">${mov > 0 ? '▲' : '▼'} ${pct(mov)} desde ${esc(datos.anterior)}</small>`
+    : '';
+  const aviso = r.dudoso ? `<small>¿réplica? las tiendas piden ${ars(r.tiendas)}</small>` : '';
+  return `<td class="dif dif--${r.dudoso ? 'dudoso' : tono(r.diferencia)}">${pct(r.diferencia) || '—'}<small>${base}</small>${aviso}${movimiento}</td>`;
+}
+
 function html(datos) {
   const filas = datos.productos.map((p) => {
-    const t = tono(p.diferencia);
+    const t = tonoPrincipal(datos, p);
+    const tTiendas = tono(p.diferencia);
     const mov = p.medianaAnterior && p.mercado.mediana ? p.mercado.mediana / p.medianaAnterior - 1 : null;
     const movimiento = mov != null && Math.abs(mov) >= 0.01
       ? `<small class="${mov > 0 ? 'sube' : 'baja'}">${mov > 0 ? '▲' : '▼'} ${pct(mov)} desde ${esc(datos.anterior)}</small>`
       : '';
-    return `<tr data-tono="${t}" data-dif="${p.diferencia ?? ''}" data-texto="${esc(`${p.marca} ${p.nombre}`.toLowerCase())}">
+    return `<tr data-tono="${t}" data-dif="${principal(datos, p) ?? ''}" data-texto="${esc(`${p.marca} ${p.nombre}`.toLowerCase())}">
       <th scope="row">${esc(p.nombre)}<small>${esc(p.marca)} · ${p.ml ?? '?'} ml</small></th>
       <td class="nuestro">${ars(p.nuestro)}</td>
+      ${datos.referencia ? celdaReferencia(datos, p) : ''}
       ${datos.fuentes.map((f) => celdaFuente(p.fuentes[f.id])).join('')}
       <td>${ars(p.mercado.mediana)}<small>${p.mercado.cantidad ? `${p.mercado.cantidad} con stock · mín ${ars(p.mercado.minimo)}` : ''}</small>${movimiento}</td>
-      <td class="dif dif--${t}">${pct(p.diferencia) || '—'}</td>
+      <td class="dif dif--${tTiendas}">${pct(p.diferencia) || '—'}</td>
     </tr>`;
   }).join('\n');
 
-  const cuenta = (t) => datos.productos.filter((p) => tono(p.diferencia) === t).length;
+  const cuenta = (t) => datos.productos.filter((p) => tonoPrincipal(datos, p) === t).length;
+  const contra = datos.referencia ? esc(datos.referencia.nombre) : 'el mercado';
 
   return `<!doctype html>
 <html lang="es-AR">
@@ -78,6 +98,7 @@ function html(datos) {
   .dif--caro { color: var(--caro); background: var(--caro-fondo); }
   .dif--barato { color: var(--barato); background: var(--barato-fondo); }
   .dif--sin { color: #b7b0c2; }
+  .dif--dudoso { color: #7a5b00; background: #fdf3d8; }
   .sube { color: var(--caro); } .baja { color: var(--barato); }
   footer { padding: 0 16px 24px; color: var(--suave); font-size: 12px; }
   tr[hidden] { display: none; }
@@ -91,10 +112,11 @@ function html(datos) {
 <main>
   <div class="resumen" role="group" aria-label="Filtrar">
     <button type="button" data-filtro="" aria-pressed="true">Todos (${datos.productos.length})</button>
-    <button type="button" data-filtro="caro" aria-pressed="false">Más caros que el mercado (${cuenta('caro')})</button>
+    <button type="button" data-filtro="caro" aria-pressed="false">Más caros que ${contra} (${cuenta('caro')})</button>
     <button type="button" data-filtro="barato" aria-pressed="false">Más baratos (${cuenta('barato')})</button>
     <button type="button" data-filtro="parejo" aria-pressed="false">Parejos (${cuenta('parejo')})</button>
-    <button type="button" data-filtro="sin" aria-pressed="false">Sin datos (${cuenta('sin')})</button>
+    ${datos.referencia ? `<button type="button" data-filtro="dudoso" aria-pressed="false">¿Réplica en ${contra}? (${cuenta('dudoso')})</button>` : ''}
+    <button type="button" data-filtro="sin" aria-pressed="false">${datos.referencia ? `No está en ${contra}` : 'Sin datos'} (${cuenta('sin')})</button>
     <input type="search" placeholder="Buscar perfume o marca" aria-label="Buscar perfume o marca">
   </div>
   <div class="tabla">
@@ -102,9 +124,10 @@ function html(datos) {
       <thead><tr>
         <th scope="col" data-orden="texto" style="text-align:left">Perfume</th>
         <th scope="col">${esc(datos.tienda || 'Nosotros')}</th>
+        ${datos.referencia ? `<th scope="col" data-orden="dif">vs ${contra} ↕</th>` : ''}
         ${datos.fuentes.map((f) => `<th scope="col">${esc(f.nombre)}</th>`).join('')}
-        <th scope="col">Mediana mercado</th>
-        <th scope="col" data-orden="dif">Dif. ↕</th>
+        <th scope="col">Mediana tiendas</th>
+        <th scope="col"${datos.referencia ? '' : ' data-orden="dif"'}>Dif. tiendas${datos.referencia ? '' : ' ↕'}</th>
       </tr></thead>
       <tbody>
 ${filas}
@@ -113,10 +136,10 @@ ${filas}
   </div>
 </main>
 <footer>
+  ${datos.referencia ? `vs ${contra}: nuestro precio contra su mediana de 91 días (o el precio más bajo de hoy, si no hay historial). Es la comparación principal: ahí busca el cliente. Si su precio está a menos del 60 % de lo que piden las tiendas por el original, se marca "¿réplica?" y no se cuenta: revisá la publicación.<br>` : ''}
   Precio de cada tienda: el más barato de las publicaciones que coinciden con el perfume (marca, nombre y ml), con stock si hay.
   Mercado Libre: el vendedor más barato del día según MejoresCompras, con la mediana de 91 días debajo.
-  La mediana y la diferencia usan solo precios con stock y no atípicos (menos del 60 % o más del 170 % de lo que piden los demás). Tachado: sin stock. Pasá el mouse por un precio para ver la publicación.
-  Las tiendas suelen tener descuento por transferencia que acá no aparece.
+  La mediana y la diferencia usan solo precios con stock y no atípicos (menos del 60 % o más del 170 % de lo que piden los demás)${datos.usarTransferencia ? ', y el precio por transferencia cuando la tienda lo publica' : ', con el precio de lista'}. Tachado: sin stock. Pasá el mouse por un precio para ver la publicación.
 </footer>
 <script>
   const filas = [...document.querySelectorAll('tbody tr')];
@@ -154,9 +177,12 @@ function csv(datos) {
     const s = v == null ? '' : String(v);
     return /[;"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
-  const cabecera = ['id', 'marca', 'perfume', 'ml', 'nuestro', ...datos.fuentes.map((f) => f.nombre), 'ml_mediana_91d', 'mercado_minimo', 'mercado_mediana', 'diferencia_%'];
+  const cabecera = ['id', 'marca', 'perfume', 'ml', 'nuestro',
+    ...(datos.referencia ? ['referencia_hoy', 'referencia_91d', 'diferencia_referencia_%', 'referencia_dudosa'] : []),
+    ...datos.fuentes.map((f) => f.nombre), 'ml_mediana_91d', 'mercado_minimo', 'mercado_mediana', 'diferencia_%'];
   const filas = datos.productos.map((p) => [
     p.id, p.marca, p.nombre, p.ml, p.nuestro,
+    ...(datos.referencia ? [p.referencia?.hoy, p.referencia?.tipico, p.referencia?.diferencia == null ? '' : Math.round(p.referencia.diferencia * 100), p.referencia?.dudoso ? 'si' : ''] : []),
     ...datos.fuentes.map((f) => {
       const x = p.fuentes[f.id];
       return x && x.precio ? `${Math.round(x.precio)}${x.stock ? '' : ' (sin stock)'}${x.atipico ? ' (atípico)' : ''}` : '';

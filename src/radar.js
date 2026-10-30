@@ -89,13 +89,19 @@ async function main() {
     return;
   }
   const { config, carpeta } = leerConfig(o.config);
-  fuentesSitios.configurar({ agente: config.agente });
   const alias = prepararAlias(config.alias);
   const atipico = { ...ATIPICO_POR_DEFECTO, ...config.atipico };
   const salida = path.resolve(carpeta, config.salida || 'informes');
+  fuentesSitios.configurar({ agente: config.agente, cache: path.join(salida, '.cache') });
 
   const fuentes = o.fuentes ? config.fuentes.filter((f) => o.fuentes.includes(f.id)) : config.fuentes;
   if (!fuentes.length) throw new Error(`Ninguna fuente con esos ids. Hay: ${config.fuentes.map((f) => f.id).join(', ')}`);
+  // Fuente de referencia: la que mira el cliente antes de comprar (en general,
+  // Mercado Libre). El informe compara primero contra ella.
+  const referencia = fuentes.find((f) => f.id === config.referencia) || null;
+  if (config.referencia && !config.fuentes.some((f) => f.id === config.referencia)) {
+    throw new Error(`"referencia": no hay ninguna fuente con id "${config.referencia}".`);
+  }
 
   console.log('Leyendo el catálogo propio ...');
   let productos = await catalogo.cargar(config, carpeta);
@@ -132,20 +138,43 @@ async function main() {
     // Precio atípico: muy lejos de lo que piden todos los demás por ese
     // producto (otro tamaño sin ml en el título, un vendedor dudoso). Se
     // muestra, pero no cuenta para la mediana.
+    // Con "usarTransferencia", se compara contra el precio por transferencia
+    // cuando la tienda lo publica: el de lista suele traer el recargo de las cuotas.
     const encontrados = Object.values(r.fuentes).filter((f) => f && f.precio);
-    const referencia = mediana(encontrados.map((f) => f.precio));
     for (const f of encontrados) {
-      f.atipico = encontrados.length > 1 && (f.precio < referencia * atipico.abajo || f.precio > referencia * atipico.arriba);
+      f.comparable = config.usarTransferencia && f.extra?.transferencia < f.precio ? f.extra.transferencia : f.precio;
     }
-    const precios = encontrados.filter((f) => f.stock && !f.atipico).map((f) => f.precio);
+    const centro = mediana(encontrados.map((f) => f.comparable));
+    for (const f of encontrados) {
+      f.atipico = encontrados.length > 1 && (f.comparable < centro * atipico.abajo || f.comparable > centro * atipico.arriba);
+    }
+    const precios = encontrados.filter((f) => f.stock && !f.atipico).map((f) => f.comparable);
     r.mercado = {
       cantidad: precios.length,
       minimo: precios.length ? Math.min(...precios) : null,
       mediana: mediana(precios),
     };
     r.diferencia = r.nuestro && r.mercado.mediana ? r.nuestro / r.mercado.mediana - 1 : null;
+
+    // Contra la referencia: su precio típico (mediana de 91 días, si la fuente
+    // la da) o, si no, el más bajo de hoy. Cuenta aunque sea atípico para las
+    // tiendas: es lo que el cliente ve.
+    const ref = referencia && r.fuentes[referencia.id];
+    if (ref && ref.precio) {
+      const tipico = ref.extra?.mediana91 || null;
+      const valor = tipico || ref.precio;
+      // Si la referencia está muy por debajo de lo que piden las tiendas por el
+      // original, probablemente el más barato vende réplica (en ML lo aclaran en
+      // la descripción, que no se puede leer). Se marca y no se cuenta.
+      const tiendas = mediana(encontrados.filter((f) => f !== ref).map((f) => f.comparable));
+      const dudoso = Boolean(tiendas && valor < tiendas * atipico.abajo);
+      r.referencia = { hoy: ref.precio, tipico, valor, tiendas, dudoso, diferencia: r.nuestro ? r.nuestro / valor - 1 : null };
+    } else {
+      r.referencia = null;
+    }
     const antes = anterior?.porClave.get(`${r.marca}|${r.nombre}|${r.ml}`.toLowerCase());
     r.medianaAnterior = antes?.mercado?.mediana ?? null;
+    r.referenciaAnterior = antes?.referencia?.valor ?? null;
     if (o.detalle && r.registro.length) console.log(`\n  ${r.marca} ${r.nombre} ${r.ml ?? '?'} ml\n${r.registro.join('\n')}`);
     delete r.registro;
   }
@@ -154,6 +183,8 @@ async function main() {
     fecha: hoy,
     generado: new Date().toISOString(),
     tienda: config.tienda || null,
+    usarTransferencia: Boolean(config.usarTransferencia),
+    referencia: referencia ? { id: referencia.id, nombre: referencia.nombre } : null,
     fuentes: fuentes.map(({ id, nombre, tipo, url }) => ({ id, nombre, tipo, url })),
     anterior: anterior?.fecha || null,
     productos: resultados,
@@ -172,7 +203,13 @@ async function main() {
   const caros = conDatos.filter((r) => r.diferencia > 0.1).length;
   const baratos = conDatos.filter((r) => r.diferencia < -0.1).length;
   console.log(`\nListo en ${Math.round((Date.now() - inicio) / 1000)} s. Con precio de mercado: ${conDatos.length} de ${resultados.length}.`);
-  console.log(`  ${caros} más de 10 % arriba de la mediana, ${baratos} más de 10 % abajo.`);
+  console.log(`  Tiendas: ${caros} más de 10 % arriba de la mediana, ${baratos} más de 10 % abajo.`);
+  if (referencia) {
+    const conRef = resultados.filter((r) => r.referencia?.diferencia != null && !r.referencia.dudoso);
+    const dudosos = resultados.filter((r) => r.referencia?.dudoso).length;
+    const n = (fn) => conRef.filter(fn).length;
+    console.log(`  ${referencia.nombre} (${conRef.length} con precio): ${n((r) => r.referencia.diferencia > 0.1)} más de 10 % arriba, ${n((r) => r.referencia.diferencia < -0.1)} más de 10 % abajo${dudosos ? `, ${dudosos} dudosos (¿réplica?)` : ''}.`);
+  }
   console.log(`Informe: ${path.join(salida, `${nombre}.html`)}`);
 }
 

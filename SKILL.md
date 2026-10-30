@@ -1,6 +1,6 @@
 ---
 name: radar-de-precios
-description: Compara los precios de una perfumería con Mercado Libre y tiendas Tiendanube o Shopify de Argentina, resume quién está más caro o más barato y propone ajustes. Usar cuando se pida revisar precios de la competencia, "cómo estamos de precios", "precios de mercado", correr o actualizar el radar de precios, o ver si algún perfume está caro o barato.
+description: Compara los precios de una perfumería con Mercado Libre y tiendas Tiendanube, Shopify o VTEX de Argentina, resume quién está más caro o más barato y propone ajustes. Usar cuando se pida revisar precios de la competencia, "cómo estamos de precios", "precios de mercado", correr o actualizar el radar de precios, o ver si algún perfume está caro o barato.
 ---
 
 # Radar de precios
@@ -36,19 +36,21 @@ Cada elemento de `productos` trae:
 - `fuentes.<id>`: la publicación elegida (`titulo`, `precio`, `stock`, `url`, `atipico`, `extra`), `null` si no está, o `{ error }`.
   - `extra.transferencia`: precio con descuento por transferencia (Tiendanube).
   - `extra.mediana91`, `extra.vendedores`: solo Mercado Libre.
-- `mercado`: `minimo`, `mediana` y `cantidad` de precios con stock y no atípicos.
+- `mercado`: `minimo`, `mediana` y `cantidad` de precios con stock y no atípicos. Si la configuración tiene `usarTransferencia`, se calculan con `comparable` (transferencia cuando hay, si no lista).
 - `diferencia`: `nuestro / mediana - 1` (0.15 = 15 % más caros).
-- `medianaAnterior`: mediana de la corrida anterior.
+- `referencia` (si la configuración tiene `referencia`, normalmente Mercado Libre): `hoy` (más bajo de hoy), `tipico` (mediana de 91 días), `valor` (el típico o, si no hay, el de hoy) y `diferencia` contra ese valor.
+- `medianaAnterior`, `referenciaAnterior`: valores de la corrida anterior.
 
 ## 4. Resumir
 
 Respuesta corta, en este orden:
 
-1. Cuántos productos tienen precio de mercado y cuántos no.
-2. Los que están más de 10 % arriba de la mediana: nombre, nuestro precio, mediana, quién está más barato.
-3. Los que están más de 10 % abajo: ahí hay margen para subir.
-4. Movimientos fuertes contra la corrida anterior (más de 5 %).
-5. Fuentes que dieron error.
+1. Si hay `referencia`, es la comparación principal (ahí busca el cliente): empezar por ella. Después, las tiendas como apoyo.
+2. Cuántos productos tienen precio de mercado y cuántos no.
+3. Los que están más de 10 % arriba de la mediana: nombre, nuestro precio, mediana, quién está más barato.
+4. Los que están más de 10 % abajo: ahí hay margen para subir.
+5. Movimientos fuertes contra la corrida anterior (más de 5 %).
+6. Fuentes que dieron error.
 
 Antes de afirmar algo, mirar el `titulo` elegido: si no parece el mismo producto (otra versión, otro tamaño), decirlo y no contarlo. Para corregir emparejamientos: `alias` en la configuración para nombres que el catálogo abrevia; reglas generales en `src/coincidir.js` (`GENERICAS`, `EXCLUIDAS`).
 
@@ -64,4 +66,4 @@ Si piden propuestas: lista con producto, precio actual, propuesto y por qué. Mo
 
 ## Sumar tiendas
 
-Agregar `{ "id", "nombre", "tipo", "url" }` a `fuentes`. Tipos: `tiendanube`, `shopify`, `mejorescompras`. Antes, revisar el `robots.txt` del sitio y respetarlo. Para otra plataforma hay que escribir un lector en `src/fuentes.js`.
+Agregar `{ "id", "nombre", "tipo", "url" }` a `fuentes`. Tipos: `tiendanube`, `shopify`, `vtex`, `mejorescompras`. Antes, revisar el `robots.txt` del sitio y respetarlo. Para otra plataforma hay que escribir un lector en `src/fuentes.js`.

@@ -3,6 +3,7 @@
 // Tipos:
 //   tiendanube      cualquier tienda Tiendanube (las fotos salen de mitiendanube.com)
 //   shopify         cualquier tienda Shopify (https://<tienda>/products.json responde)
+//   vtex            cualquier tienda VTEX (https://<tienda>/api/catalog_system/pub/products/search responde)
 //   mejorescompras  Mercado Libre Argentina, a través de mejorescompras.com.ar
 //
 // Reglas de buena conducta: el script se presenta como lo que es (agente), lee
@@ -15,14 +16,18 @@
 // Mercado Libre no deja leer sin cuenta, así que se usa MejoresCompras, que
 // sigue los precios de ML a diario y los publica.
 
+const fs = require('fs');
+const path = require('path');
 const zlib = require('zlib');
 
 const PAUSA_MS = 1000; // entre pedidos al mismo sitio
 const FICHAS_POR_PRODUCTO = 4; // tope de fichas que se abren por producto y tienda
 
 let AGENTE = 'radar-de-precios/1.0 (comparador de precios)';
-function configurar({ agente } = {}) {
+let CACHE = null; // carpeta para guardar catálogos y sitemaps entre corridas
+function configurar({ agente, cache } = {}) {
   if (agente) AGENTE = agente;
+  if (cache) CACHE = cache;
 }
 
 const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -82,8 +87,30 @@ const deSlug = (slug) => {
 // reparte entre todos los productos.
 const memoria = new Map();
 function unaVez(clave, fn) {
-  if (!memoria.has(clave)) memoria.set(clave, fn());
+  if (!memoria.has(clave)) memoria.set(clave, enDisco(clave, fn));
   return memoria.get(clave);
+}
+
+// Además, se guarda en disco: una corrida dentro de las 12 horas reusa la copia
+// en vez de volver a bajar el catálogo entero. Si el sitio falla (por ejemplo,
+// 429 por muchos pedidos), se usa la última copia de hasta 3 días, avisando.
+const FRESCO_MS = 12 * 3600 * 1000;
+const VIEJO_MS = 3 * 24 * 3600 * 1000;
+async function enDisco(clave, fn) {
+  if (!CACHE) return fn();
+  const archivo = path.join(CACHE, `${clave.replace(/[^a-z0-9-]+/gi, '_')}.json`);
+  const edad = fs.existsSync(archivo) ? Date.now() - fs.statSync(archivo).mtimeMs : Infinity;
+  if (edad < FRESCO_MS) return JSON.parse(fs.readFileSync(archivo, 'utf8'));
+  try {
+    const datos = await fn();
+    fs.mkdirSync(CACHE, { recursive: true });
+    fs.writeFileSync(archivo, JSON.stringify(datos));
+    return datos;
+  } catch (err) {
+    if (edad >= VIEJO_MS) throw err;
+    console.warn(`  (${clave}: ${err.message}; se usa la copia de hace ${Math.round(edad / 3600000)} h)`);
+    return JSON.parse(fs.readFileSync(archivo, 'utf8'));
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -175,16 +202,51 @@ async function buscarShopify(fuente, producto, coincide) {
   return (await catalogoShopify(fuente)).filter((p) => coincide(p.titulo, { flojo: true }).ok);
 }
 
+// Consultas para buscadores, de la más precisa a la más amplia: se pasa a la
+// siguiente solo si la anterior no trajo nada parecido (una tienda escribe
+// "Qahwa" y otra "Qahwah"; algunos buscadores no encuentran nada si se suma
+// la marca).
+function consultas(producto) {
+  const principal = producto.nombre.split(/\s+/).sort((a, b) => b.length - a.length)[0];
+  return [...new Set([
+    `${producto.marca} ${producto.nombre}`,
+    `${producto.marca} ${principal}`,
+    producto.nombre,
+    principal,
+  ])];
+}
+
+// VTEX: el catálogo público de la plataforma responde búsquedas en JSON, con
+// cada presentación (item) por separado: "Khamrah EDP" + "100 ml".
+async function buscarVtex(fuente, producto, coincide) {
+  for (const q of consultas(producto)) {
+    await esperar(PAUSA_MS);
+    const lista = await traer(`${fuente.url}/api/catalog_system/pub/products/search?ft=${encodeURIComponent(q)}&_from=0&_to=49`, 'json');
+    const salida = [];
+    for (const p of Array.isArray(lista) ? lista : []) {
+      for (const item of p.items || []) {
+        const oferta = item.sellers?.[0]?.commertialOffer;
+        if (!oferta?.Price) continue;
+        const presentacion = item.name && item.name !== p.productName ? ` ${item.name}` : '';
+        salida.push({
+          titulo: `${p.brand || ''} ${p.productName}${presentacion}`.trim(),
+          precio: oferta.Price,
+          stock: oferta.AvailableQuantity > 0,
+          url: p.link,
+        });
+      }
+    }
+    if (salida.some((s) => coincide(s.titulo, { flojo: true }).ok)) return salida;
+  }
+  return [];
+}
+
 // MejoresCompras: la búsqueda devuelve fichas /precio/MLA...--titulo-en-slug.
 // Las que coinciden se abren: traen el rango de precios de ML de hoy (todos los
 // vendedores) y la mediana de los últimos 91 días.
 async function buscarMejoresCompras(fuente, producto, coincide) {
-  // Si con el nombre completo no aparece nada (ML escribe "Qahwa" y nosotros
-  // "Qahwah"), se prueba con la marca y la palabra más larga del nombre.
-  const principal = producto.nombre.split(/\s+/).sort((a, b) => b.length - a.length)[0];
-  const consultas = [...new Set([`${producto.marca} ${producto.nombre}`, `${producto.marca} ${principal}`])];
   let candidatas = [];
-  for (const q of consultas) {
+  for (const q of consultas(producto)) {
     await esperar(PAUSA_MS);
     const html = await traer(`${fuente.url}/buscar?q=${encodeURIComponent(q)}`);
     const fichas = new Map();
@@ -222,6 +284,7 @@ async function buscarMejoresCompras(fuente, producto, coincide) {
 const LECTORES = {
   tiendanube: buscarTiendanube,
   shopify: buscarShopify,
+  vtex: buscarVtex,
   mejorescompras: buscarMejoresCompras,
 };
 

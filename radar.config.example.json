@@ -2,6 +2,8 @@
   "tienda": "Mi Perfumería",
   "agente": "MiPerfumeriaPrecios/1.0 (comparador de precios; +https://mi-perfumeria.com.ar)",
   "catalogo": { "csv": "productos.csv" },
+  "referencia": "ml",
+  "usarTransferencia": true,
   "fuentes": [
     { "id": "ml", "nombre": "Mercado Libre", "tipo": "mejorescompras", "url": "https://mejorescompras.com.ar" },
     { "id": "tienda1", "nombre": "Tienda Uno", "tipo": "tiendanube", "url": "https://www.tienda-uno.com.ar" },

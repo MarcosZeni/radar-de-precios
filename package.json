@@ -1,7 +1,7 @@
 {
   "name": "radar-de-precios",
   "version": "1.0.0",
-  "description": "Compara los precios de tu perfumería con Mercado Libre y tiendas Tiendanube y Shopify de Argentina. Script de Node y skill de Claude.",
+  "description": "Compara los precios de tu perfumería con Mercado Libre y tiendas Tiendanube, Shopify y VTEX de Argentina. Script de Node y skill de Claude.",
   "license": "MIT",
   "author": "Marcos Zeni",
   "bin": {
@@ -14,5 +14,5 @@
   "engines": {
     "node": ">=20"
   },
-  "keywords": ["precios", "perfumes", "tiendanube", "shopify", "mercado-libre", "argentina", "claude-skill"]
+  "keywords": ["precios", "perfumes", "tiendanube", "shopify", "vtex", "mercado-libre", "argentina", "claude-skill"]
 }

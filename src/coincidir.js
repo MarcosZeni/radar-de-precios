@@ -31,12 +31,15 @@ const GENERICAS = new Set(`
 // Pazzaglia Summer Hammer"): se corta.
 const CORTE = /\b(dupe|inspirad[oa]|similar|alternativa|recuerda|clon)\b.*$/;
 
-// Si aparece cualquiera de estas, la publicación no es el frasco.
+// Si aparece cualquiera de estas, la publicación no es el frasco original:
+// otro producto (decant, desodorante, kit) o una réplica ("genérico", "1.1").
 const EXCLUIDAS = new Set(`
   decant decants muestra muestras sample samples desodorante deo deodorant
   antitranspirante body mist splash crema cream locion lotion gel shower kit
   set pack combo estuche ambientador aromatizador home hair capilar miniatura
   mini tester refill recarga travel aceite oil auto
+  generico generica genericos genericas replica replicas simil imitacion
+  imitaciones contratipo aaa 1.1
 `.trim().split(/\s+/));
 
 const MASCULINAS = new Set(['man', 'men', 'hombre', 'hombres', 'masculino', 'masculina', 'caballero', 'him']);
